@@ -1,0 +1,188 @@
+port = "COM13"; % 替换为你的端口号
+baudrate = 9600;
+%device = serialport(port, baudrate);
+name = "Matlab";
+Client = TCPInit('127.0.0.1',55016,name);
+
+
+numberz=0.12;
+numbery=0;
+numberx=0;
+numbert=0;
+b=1;
+lastZ = numberz;
+lastY = numbery;
+lastX = numberx;
+lastt = numbert;
+% 清理缓冲区
+flush(device);
+% 创建图表和动画线
+figure;
+
+subplot(1, 4, 1);
+ax1 = gca;
+hold on;
+xlabel('Time');
+ylabel('Height (cm)');
+title('Real-time Data J1');
+hZ = animatedline('Color', 'r'); % 红色线表示Z，虚拟值
+hZ1 = animatedline('Color', 'black'); % 红色线表示Z，真实值
+ylim([4 12]); % 设置纵坐标轴的范围
+
+subplot(1,4 , 2);
+ax2 = gca;
+hold on;
+xlabel('Time');
+ylabel('Angle (degrees)');
+title('Real-time Data J2');
+hY = animatedline('Color', 'g'); % 绿色线表示Y
+hY1 = animatedline('Color', 'r'); % 绿色线表示Y
+ylim([-160 160]); % 设置纵坐标轴的范围
+
+subplot(1, 4, 3);
+ax3 = gca;
+hold on;
+xlabel('Time');
+ylabel('Angle (degrees)');
+title('Real-time Data J3');
+hX = animatedline('Color', 'b'); % 蓝色线表示X
+hX1 = animatedline('Color', 'g'); % 蓝色线表示X
+ylim([-160 160]); % 设置纵坐标轴的范围
+
+subplot(1, 4, 4);
+ax4 = gca;
+hold on;
+xlabel('Time');
+ylabel('Angle (degrees)');
+title('Real-time Data J4');
+ht = animatedline('Color', 'black'); % 黑色线表示T
+ht1 = animatedline('Color', 'r'); % 黑色线表示T
+ylim([-30 30]); % 设置纵坐标轴的范围
+
+% 新的figure用于delay图表
+figure;
+hold on;
+xlabel('Elapsed Time (s)');
+ylabel('Delay (s)');
+title('Delay over Time');
+hDelay = animatedline('Color', 'm'); % 紫色线表示延迟
+
+startTime = datetime('now');
+
+% 设置读取循环
+while true
+    
+     
+
+    data = readline(device);            % 读取一行数据
+    if strlength(data) == 0
+        
+        continue;                       % 如果读取为空，继续循环
+    end
+    disp(['Received data: ', data]);    % 打印原始数据，帮助调试
+
+    % 分割键和值
+    splitData = split(data, '=');       % 使用等号'='分割数据
+    if length(splitData) < 2
+        warning('Invalid data format received.');
+        continue;                       % 如果数据格式不正确，继续下一个循环
+    
+    elseif length(splitData)<3
+    % 提取键和值
+    key = strip(splitData(1));          % 获取键（这里是'x'）
+    value = str2double(strip(splitData(2)));  % 将值转换为数字
+    elseif length(splitData)<6
+    % 提取键和值
+    key = strip(splitData(1));          % 获取键（这里是'Q'）
+    value1 = str2double(strip(splitData(2)));  % 将值转换为数字
+    value2 = str2double(strip(splitData(3)));  % 将值转换为数字
+    value3 = str2double(strip(splitData(4)));  % 将值转换为数字
+    value4 = str2double(strip(splitData(5)));  % 将值转换为数字
+    end
+    
+
+    if strcmp(key, 'Z')
+        numberz=(value+11667)/205560;
+        %addpoints(hZ, datenum(datetime('now')), numberz);
+        numberz1=numberz*100;
+        lastZ = numberz1;
+        %disp(num2str(numberz));
+    elseif strcmp(key, 'Y')
+        numbery=(value+1900)/945;
+        %addpoints(hY, datenum(datetime('now')), numbery);
+        numbery1=numbery*180/pi;
+        lastY = numbery1;
+        %numberx=numbery*(-0.517)+numberx;
+    elseif strcmp(key, 'X')
+        numberx=(value-2000)/1455-0.517*numbery;
+       %addpoints(hX, datenum(datetime('now')), numberx);
+       numberx1=numberx*180/pi;
+        lastX = numberx1;
+    elseif strcmp(key, 'grabba pivot')
+        numbert=value*pi/180;
+       %addpoints(hX, datenum(datetime('now')), numberx);
+       
+        lastt = value;
+    elseif strcmp(key, 'Q')
+        numberz=(value1+11667)/205560;
+        %addpoints(hZ, datenum(datetime('now')), numberz);
+        numberz1=numberz*100;
+        lastZ = numberz1;
+        numbery=(value2+1900)/945;
+        %addpoints(hY, datenum(datetime('now')), numbery);
+        numbery1=numbery*180/pi;
+        lastY = numbery1;
+        numberx=(value3-2000)/1455-0.517*numbery;
+       %addpoints(hX, datenum(datetime('now')), numberx);
+       numberx1=numberx*180/pi;
+        lastX = numberx1;
+        numbert=value4*pi/180;
+
+
+        currentTime = datetime('now');
+        elapsedTime = seconds(currentTime - startTime);
+       
+    
+
+    end
+    
+
+    q=[numberz,numbery,numberx,numbert];
+    func_data(Client, q, b);
+     %print(numberz);
+       
+     % 添加当前的最后更新值，以确保图表持续显示
+    
+    % 如果读取为空，继续绘制最后的数值
+    %yyaxis left       
+    currentTime = datetime('now');
+    elapsedTime2 = seconds(currentTime - startTime);
+    
+    
+     % 添加新的数据点到动画线
+        addpoints(hZ1, elapsedTime, lastZ);
+        addpoints(hY1, elapsedTime, lastY);
+        addpoints(hX1, elapsedTime, lastX);
+        addpoints(ht1, elapsedTime, numbert);
+        drawnow;
+        %datetick('x', 'HH:MM:SS', 'keeplimits');
+    
+    % 显示结果虚拟
+        addpoints(hZ, elapsedTime2, lastZ);
+        %yyaxis left
+        addpoints(hY, elapsedTime2, lastY);
+        addpoints(hX, elapsedTime2, lastX);
+        addpoints(ht, elapsedTime2, numbert);
+        drawnow;
+
+        delay=elapsedTime2-elapsedTime;
+        addpoints(hDelay, elapsedTime2, delay); % 添加延迟数据点
+        drawnow;
+
+
+        fprintf('Key: %s, Value: %d\n, Delay: %d\n', key, value,delay);
+        %datetick('x', 'HH:MM:SS', 'keeplimits');
+% 清理缓冲区
+%flush(device);
+
+end

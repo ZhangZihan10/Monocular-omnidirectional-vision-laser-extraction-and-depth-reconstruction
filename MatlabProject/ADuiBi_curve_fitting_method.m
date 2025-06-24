@@ -1,0 +1,99 @@
+%% 激光条纹中心提取独立程序
+% 作者：根据论文方法实现
+% 日期：2023-10-15
+% 最后更新：2023-10-15
+% 功能：从图像中提取激光条纹中心线（亚像素精度）
+
+%% 参数设置
+close all; clc;
+imagePath = ('005.png');  % 输入图像路径
+n = 10;                         % 每侧采样点数（总点数=2n+1）
+contrastRange = [0.3 0.7];      % 对比度调整范围
+
+%% 图像读取与预处理
+try
+    % 读取原始图像
+    [img, cmap] = imread(imagePath);
+    originalImg = ind2gray(img, cmap);
+    %originalImg = img;
+    % 转换为灰度图像
+    if size(originalImg,3) == 3
+        grayImg = rgb2gray(originalImg);
+    else
+        grayImg = originalImg;
+    end
+    
+    % 增强对比度（可选）
+    enhancedImg = imadjust(grayImg, contrastRange, []);
+catch ME
+    error('图像读取失败，请检查文件路径和图像格式');
+end
+
+%% 初始化参数
+[rows, cols] = size(enhancedImg);
+centers = zeros(1, cols);  % 存储中心坐标
+
+%% 主处理循环
+for col = 1:cols
+    % 获取当前列光强数据
+    columnData = double(enhancedImg(:, col));
+    
+    % 找到最大光强位置
+    [~, maxIdx] = max(columnData);
+    
+    % 边界保护
+    startIdx = max(1, maxIdx - n);
+    endIdx = min(rows, maxIdx + n);
+    
+    % 提取采样点
+    y = (startIdx:endIdx)';
+    I = columnData(startIdx:endIdx);
+    
+    % 避免零值（对数处理需要）
+    I(I == 0) = 1e-6;
+    
+    %% 高斯拟合核心算法
+    % 对数变换
+    H = log(I);
+    
+    % 构建矩阵
+    Y = [ones(length(y),1), y, y.^2];
+    
+    % 最小二乘解算
+    coefficients = (Y' * Y) \ (Y' * H);
+    
+    % 计算中心点
+    a1 = coefficients(2);
+    a2 = coefficients(3);
+    y0 = -a1/(2*a2);
+    
+    % 存储结果
+    centers(col) = y0;
+end
+
+%% 结果可视化
+figure('Name','处理结果', 'Position', [100 100 1200 600])
+
+% 显示原始图像
+subplot(1,2,1)
+imshow(originalImg)
+title('原始图像')
+axis on
+
+% 显示处理结果
+subplot(1,2,2)
+imshow(enhancedImg)
+hold on
+plot(1:cols, centers, 'r-', 'LineWidth', 1.5)
+title(sprintf('中心线提取 (n=%d)',n))
+axis on
+hold off
+
+%% 结果保存（可选）
+saveas(gcf, 'result.png');  % 保存结果图
+writematrix(centers', 'center_coordinates.csv');  % 保存坐标数据
+
+%% 性能统计
+fprintf('处理完成\n');
+fprintf('图像尺寸: %d x %d 像素\n', cols, rows);
+%fprintf('计算耗时: %.2f 秒\n', toc);  
